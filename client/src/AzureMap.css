@@ -1,0 +1,9 @@
+html, body {
+    margin: 0;
+}
+
+#myMap {
+    margin: 2em 0em;
+    height: 90vh;
+    width: 100vw;
+}
