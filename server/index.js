@@ -1,8 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import pkg from "pg"; // ES модул на pg
-const { Pool } = pkg;
+import sql from "mssql";
 
 dotenv.config();
 
@@ -10,25 +9,47 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT),
+const pool = new sql.ConnectionPool({
+  server: process.env.DB_HOST,
+  database: process.env.DB_NAME,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  options: {
+    trustServerCertificate: true
+  },
+  connectionTimeout: 30000
 });
 
-app.get("/test", async (req, res) => {
+pool.connect()
+  .then(() => console.log("Database connected"))
+  .catch(err => console.error("Database connection failed:", err));
+
+app.get("/get-routes", async (req, res) => {
   try {
-    const result = await pool.query("SELECT NOW()");
-    res.json({ serverTime: result.rows[0] });
+    const result = await pool
+      .request()
+      .query("SELECT * FROM PL_COORDINATES");
+
+    res.json({ result: result.recordset });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Database error" });
   }
 });
 
-const PORT = Number(process.env.PORT) || 5000;
+app.get("/get-points", async (req, res) => {
+  try {
+    const result = await pool
+      .request()
+      .query("SELECT * FROM PST_COORDINATES");
+    res.json({ result: result.recordset });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+const PORT = Number(process.env.PORT);
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
