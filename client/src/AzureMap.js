@@ -203,7 +203,6 @@ const createPoints = (result) => {
   return (
     <div>
       <button onClick={() => setEnabledAdding(true)}>Add PL</button>
-      {/* <button onClick={fetchPL}>Get PL</button> */}
       <div ref={mapRef} id="myMap" />
     </div>
   );
