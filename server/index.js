@@ -26,10 +26,12 @@ pool.connect()
 
 app.get("/get-routes", async (req, res) => {
   try {
+    const query = `SELECT c.id, c.PL_Names_id, c.Longitude, c.Latitute, n.color 
+              FROM PL_COORDINATES c 
+              INNER JOIN PL_Names n ON n.id = c.PL_Names_id`;
     const result = await pool
       .request()
-      .query("SELECT * FROM PL_COORDINATES");
-
+      .query(query);
     res.json({ result: result.recordset });
   } catch (err) {
     console.error(err);
@@ -41,13 +43,29 @@ app.get("/get-points", async (req, res) => {
   try {
     const result = await pool
       .request()
-      .query("SELECT * FROM PST_COORDINATES");
+      .query(`SELECT C.* FROM PST_COORDINATES C`);
     res.json({ result: result.recordset });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Database error" });
   }
 });
+
+app.get("/get-line-info/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const result = await pool
+      .request()
+      .input("id", id)
+      .query(`SELECT name,volt FROM PL_Names WHERE id = @id`);
+      res.json({name: result.recordset[0].name, 
+                volt: result.recordset[0].volt});
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 
 const PORT = Number(process.env.PORT);
 app.listen(PORT, () => {
