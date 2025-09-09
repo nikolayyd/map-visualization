@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import * as atlas from "azure-maps-control";
 import "./AzureMap.css";
 
@@ -8,12 +8,11 @@ function AzureMap() {
   const pointSourceRef = useRef(null);
   const routeSourceRef = useRef(null);
   const hasFetched = useRef(false);
-  const [enabledAdding, setEnabledAdding] = useState(false);
 
   useEffect(() => {
     const map = new atlas.Map(mapRef.current, {
       center: [25.64186, 42.66115],
-      zoom: 7,
+      zoom: 7.5,
       minZoom: 6.5,
       maxZoom: 13,
       language: "bg-BG",
@@ -29,6 +28,7 @@ function AzureMap() {
         subscriptionKey: process.env.REACT_APP_AZURE_MAPS_KEY
       }
     });
+
     
     if (!hasFetched.current) {
       hasFetched.current = true;
@@ -36,13 +36,22 @@ function AzureMap() {
       fetchPST().then((points) => {
         createPoints(points);
       });
+      
     }
+    map.layers.getLayers().forEach(layer => layer.setOptions(layer.getOptions()));
 
-    map.events.add("ready", () => {
+    map.events.add("ready", async () => {
+
       const pointSource = new atlas.source.DataSource(null, {
         cluster: true,
-        clusterRadius: 45,
-        clusterMaxZoom: 15
+        clusterRadius: 3,
+        clusterMaxZoom: 8,
+        clusterProperties: {
+          'red_count': ['+', ['case', ['==', ['get', 'color'], 'red'], 1, 0]],
+          'yellow_count': ['+', ['case', ['==', ['get', 'color'], 'yellow'], 1, 0]],
+          'blue_count': ['+', ['case', ['==', ['get', 'color'], 'blue'], 1, 0]],
+          'orange_count': ['+', ['case', ['==', ['get', 'color'], 'orange'], 1, 0]]
+        }
       });
       map.sources.add(pointSource);
       pointSourceRef.current = pointSource;
@@ -50,6 +59,12 @@ function AzureMap() {
       const routeSource = new atlas.source.DataSource();
       map.sources.add(routeSource);
       routeSourceRef.current = routeSource;
+      await Promise.all [
+        map.imageSprite.createFromTemplate('blue', 'pin-round', '#798edaff', '#798edaff'),
+        map.imageSprite.createFromTemplate('orange', 'pin-round', 'orange', 'orange'),
+        map.imageSprite.createFromTemplate('yellow', 'pin-round', 'yellow', 'yellow'),
+        map.imageSprite.createFromTemplate('red', 'pin-round', 'red', 'red')
+      ];
 
       const routeLayer = new atlas.layer.LineLayer(routeSource, null, {
         strokeColor: ["get", "color"],
@@ -59,26 +74,32 @@ function AzureMap() {
         lineHitTestWidth: 30
       });
 
+      const pointLayer = new atlas.layer.SymbolLayer(pointSource, null, {
+        iconOptions: {
+          image: ["get", "color"],
+          size: 0.7
+        },
+        minZoom: 0,
+        filter: ["!", ["has", "point_count"]]
+      });
+
       const pointCluster = new atlas.layer.SymbolLayer(pointSource, null, {
         iconOptions: { 
-          // image: "pin-blue",
-          size: 1.2
+          image: ['case',
+            ['>', ['get', 'red_count'], 0], 'red',
+            ['>', ['get', 'yellow_count'], 0], 'yellow',
+            ['>', ['get', 'orange_count'], 0], 'orange',
+            ['>', ['get', 'blue_count'], 0], 'blue',
+            'gray'
+          ],
+          size: 0.7
         },
         textOptions: { 
-          textField: ["get", "point_count_abbreviated"], 
-          color: "black", 
-          offset: [0, -1.6], 
+          textField: ["get", "point_count_abbreviated"],  
+          offset: [0, -0.5], 
           anchor: "center" 
         },
         lineHitTestWidth: 10
-      });
-  
-      const pointLayer = new atlas.layer.SymbolLayer(pointSource, null, {
-        iconOptions: {
-          // image: "pin-blue", 
-          size: 1.2
-        },
-        filter: ["!", ["has", "point_count"]]
       });
 
       const popup = new atlas.Popup({
@@ -88,7 +109,6 @@ function AzureMap() {
       });
 
       map.layers.add([routeLayer, pointCluster, pointLayer]);
-
       map.events.add('click', routeLayer, (e) => {
         if (e.shapes && e.shapes.length > 0) {
           const feature = e.shapes[0]; 
@@ -110,7 +130,7 @@ function AzureMap() {
                                                 <br>Локация: ${feature.data.properties.sap_location}
                                                 <br>${feature.data.properties.name_a}
                                                 <br>${feature.data.properties.name_b}
-                                                <br>${feature.data.properties.color}</div>`,
+                        </div>`,
               position: e.position
             });
             popup.open(map);
@@ -120,24 +140,6 @@ function AzureMap() {
     mapInstance.current = map;
     return () => map.dispose();
   }, []);
-
-
-  // useEffect(() => {
-  //   if (!mapInstance.current || !enabledAdding) return;
-  //   const map = mapInstance.current;
-  //   const clickHandler = (e) => {
-  //     const coords = e.position;
-  //     const newPoint = new atlas.data.Point(coords);
-  //     pointSourceRef.current.add(newPoint);
-  //     setEnabledAdding(false);
-  //   };
-
-  //   map.events.add("click", clickHandler);
-  //   return () => {
-  //     map.events.remove("click", clickHandler);
-  //   };
-
-  // }, [enabledAdding]);
 
 const createLines = (result) => {
   let currentId = null;
@@ -174,6 +176,9 @@ const createLines = (result) => {
 const createPoints = (result) => {
   let loadedPoints = [];
   for(const row of result) {
+    if(row.color !== "blue") {
+    }
+    const pointColor = row.color ? row.color : "blue";
     loadedPoints.push(
       new atlas.data.Feature(
           new atlas.data.Point([row.Longitude, row.Latitute]), 
@@ -183,7 +188,7 @@ const createPoints = (result) => {
               name_a: row.name_a,
               name_b: row.name_b,
               sap_location: row.sap_location,
-              color: row.color
+              color: pointColor
           }
       )
   );
@@ -226,7 +231,6 @@ const createPoints = (result) => {
 
   return (
     <div>
-      <button onClick={() => setEnabledAdding(true)}>Add PL</button>
       <div ref={mapRef} id="myMap"/>
     </div>
   );

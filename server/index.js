@@ -41,9 +41,25 @@ app.get("/get-routes", async (req, res) => {
 
 app.get("/get-points", async (req, res) => {
   try {
+    const query = `SELECT 
+      c.id,
+      c.Longitude,
+      c.Latitute,
+      c.name,
+      c.name_a,
+      c.name_b,
+      c.sap_location,
+      e.color
+    FROM PST_COORDINATES c
+    OUTER APPLY (
+      SELECT TOP 1 e.color
+      FROM PST_ESTIMATE e
+      WHERE e.COORDINATES_ID = c.id
+      ORDER BY e.id DESC
+    ) e;`;
     const result = await pool
       .request()
-      .query(`SELECT C.* FROM PST_COORDINATES C`);
+      .query(query);
     res.json({ result: result.recordset });
   } catch (err) {
     console.error(err);
