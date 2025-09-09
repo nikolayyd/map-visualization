@@ -19,5 +19,5 @@
 ![Примерна карта](screenshots/1.1.png)  
 ![Примерна карта](screenshots/1.2.png)  
 ![Примерна карта](screenshots/1.3.png)  
-![Примерна карта](screenshots/1.4.png)  
 ![Примерна карта](screenshots/1.5.png)  
+![Примерна карта](screenshots/1.4.png)  
