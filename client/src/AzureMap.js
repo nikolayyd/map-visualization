@@ -13,7 +13,7 @@ function AzureMap() {
     const map = new atlas.Map(mapRef.current, {
       center: [25.64186, 42.66115],
       zoom: 7.5,
-      minZoom: 6.5,
+      minZoom: 7,
       maxZoom: 13,
       language: "bg-BG",
       pitch: 0,
@@ -42,104 +42,112 @@ function AzureMap() {
 
     map.events.add("ready", async () => {
 
-      const pointSource = new atlas.source.DataSource(null, {
-        cluster: true,
-        clusterRadius: 3,
-        clusterMaxZoom: 8,
-        clusterProperties: {
-          'red_count': ['+', ['case', ['==', ['get', 'color'], 'red'], 1, 0]],
-          'yellow_count': ['+', ['case', ['==', ['get', 'color'], 'yellow'], 1, 0]],
-          'blue_count': ['+', ['case', ['==', ['get', 'color'], 'blue'], 1, 0]],
-          'orange_count': ['+', ['case', ['==', ['get', 'color'], 'orange'], 1, 0]]
+    const pointSource = new atlas.source.DataSource(null, {
+      cluster: true,
+      clusterRadius: 15,
+      clusterMaxZoom: 11,
+      clusterProperties: {
+        'red_count': ['+', ['case', ['==', ['get', 'color'], 'red'], 1, 0]],
+        'yellow_count': ['+', ['case', ['==', ['get', 'color'], 'yellow'], 1, 0]],
+        'blue_count': ['+', ['case', ['==', ['get', 'color'], 'blue'], 1, 0]],
+        'orange_count': ['+', ['case', ['==', ['get', 'color'], 'orange'], 1, 0]]
+      }
+    });
+
+    map.sources.add(pointSource);
+    pointSourceRef.current = pointSource;
+
+    const routeSource = new atlas.source.DataSource();
+    map.sources.add(routeSource);
+    routeSourceRef.current = routeSource;
+    await Promise.all ([
+      map.imageSprite.createFromTemplate('blue', 'pin-round', '#798edaff', '#798edaff'),
+      map.imageSprite.createFromTemplate('orange', 'pin-round', 'orange', 'orange'),
+      map.imageSprite.createFromTemplate('yellow', 'pin-round', 'yellow', 'yellow'),
+      map.imageSprite.createFromTemplate('red', 'pin-round', 'red', 'red')
+    ]);
+
+    const routeLayer = new atlas.layer.LineLayer(routeSource, null, {
+      strokeColor: ["get", "color"],
+      strokeWidth: 3,
+      lineJoin: "round",
+      lineCap: "round",
+      lineHitTestWidth: 30
+    });
+
+    const pointLayer = new atlas.layer.SymbolLayer(pointSource, null, {
+      iconOptions: {
+        image: ["get", "color"],
+        size: 0.8
+      },
+      minZoom: 0,
+      allowOverlap: true,
+      ignorePlacement: true,
+      filter: ["!", ["has", "point_count"]]
+    });
+
+    const clusterLayer = new atlas.layer.SymbolLayer(pointSource, null, {
+      iconOptions: { 
+        image: ['case',
+          ['>', ['get', 'red_count'], 0], 'red',
+          ['>', ['get', 'yellow_count'], 0], 'yellow',
+          ['>', ['get', 'orange_count'], 0], 'orange',
+          ['>', ['get', 'blue_count'], 0], 'blue',
+          'gray'
+        ],
+        size: 0.8,
+        minZoom: 0
+      },
+      textOptions: { 
+        textField: ["get", "point_count_abbreviated"],  
+        offset: [0, -0.4], 
+        anchor: "center" 
+      },
+      allowOverlap: true,
+      ignorePlacement: true,
+      lineHitTestWidth: 10
+    });
+
+    const popup = new atlas.Popup({
+      pixelOffset: [0, -18],
+      closeButton: true,
+      closeOnClick: true
+    });
+
+    map.layers.add([routeLayer, clusterLayer, pointLayer]);
+    map.events.add('click', routeLayer, (e) => {
+      if (e.shapes && e.shapes.length > 0) {
+        const feature = e.shapes[0]; 
+        fetchInfoPL(feature.data.properties.id).then(({volt,name}) => {
+          popup.setOptions({
+            content: `<div style="padding: 10px;"> Волт: ${volt}<br>Име: ${name}`,
+            position: e.position
+          });
+          popup.open(map);
+          });
         }
-      });
-      map.sources.add(pointSource);
-      pointSourceRef.current = pointSource;
+    });
 
-      const routeSource = new atlas.source.DataSource();
-      map.sources.add(routeSource);
-      routeSourceRef.current = routeSource;
-      await Promise.all [
-        map.imageSprite.createFromTemplate('blue', 'pin-round', '#798edaff', '#798edaff'),
-        map.imageSprite.createFromTemplate('orange', 'pin-round', 'orange', 'orange'),
-        map.imageSprite.createFromTemplate('yellow', 'pin-round', 'yellow', 'yellow'),
-        map.imageSprite.createFromTemplate('red', 'pin-round', 'red', 'red')
-      ];
-
-      const routeLayer = new atlas.layer.LineLayer(routeSource, null, {
-        strokeColor: ["get", "color"],
-        strokeWidth: 3,
-        lineJoin: "round",
-        lineCap: "round",
-        lineHitTestWidth: 30
-      });
-
-      const pointLayer = new atlas.layer.SymbolLayer(pointSource, null, {
-        iconOptions: {
-          image: ["get", "color"],
-          size: 0.7
-        },
-        minZoom: 0,
-        filter: ["!", ["has", "point_count"]]
-      });
-
-      const pointCluster = new atlas.layer.SymbolLayer(pointSource, null, {
-        iconOptions: { 
-          image: ['case',
-            ['>', ['get', 'red_count'], 0], 'red',
-            ['>', ['get', 'yellow_count'], 0], 'yellow',
-            ['>', ['get', 'orange_count'], 0], 'orange',
-            ['>', ['get', 'blue_count'], 0], 'blue',
-            'gray'
-          ],
-          size: 0.7
-        },
-        textOptions: { 
-          textField: ["get", "point_count_abbreviated"],  
-          offset: [0, -0.5], 
-          anchor: "center" 
-        },
-        lineHitTestWidth: 10
-      });
-
-      const popup = new atlas.Popup({
-        pixelOffset: [0, -18],
-        closeButton: true,
-        closeOnClick: true
-      });
-
-      map.layers.add([routeLayer, pointCluster, pointLayer]);
-      map.events.add('click', routeLayer, (e) => {
+    map.events.add('click', pointLayer, (e) => {
         if (e.shapes && e.shapes.length > 0) {
           const feature = e.shapes[0]; 
-          fetchInfoPL(feature.data.properties.id).then(({volt,name}) => {
-            popup.setOptions({
-              content: `<div style="padding: 10px;"> Волт: ${volt}<br>Име: ${name}`,
-              position: e.position
-            });
-            popup.open(map);
-            });
-          }
-      });
-
-      map.events.add('click', pointLayer, (e) => {
-          if (e.shapes && e.shapes.length > 0) {
-            const feature = e.shapes[0]; 
-            popup.setOptions({
-              content: `<div style="padding: 10px;">Име: ${feature.data.properties.name}
-                                                <br>Локация: ${feature.data.properties.sap_location}
-                                                <br>${feature.data.properties.name_a}
-                                                <br>${feature.data.properties.name_b}
-                        </div>`,
-              position: e.position
-            });
-            popup.open(map);
-          }
-      });
-   });
-    mapInstance.current = map;
-    return () => map.dispose();
-  }, []);
+          popup.setOptions({
+            content: 
+            `<div style="padding: 10px;">
+              Име: ${feature.data.properties.name}
+              <br>Локация: ${feature.data.properties.sap_location}
+              <br>${feature.data.properties.name_a}
+              <br>${feature.data.properties.name_b}
+            </div>`,
+            position: e.position
+          });
+          popup.open(map);
+        }
+    });
+  });
+  mapInstance.current = map;
+  return () => map.dispose();
+}, []);
 
 const createLines = (result) => {
   let currentId = null;
